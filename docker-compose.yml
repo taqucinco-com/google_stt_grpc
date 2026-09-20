@@ -1,0 +1,7 @@
+services:
+  grpc:
+    build: ./grpc
+    ports:
+      - "50051:50051"
+    volumes:
+      - ./grpc:/usr/src/app
