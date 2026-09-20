@@ -1,0 +1,27 @@
+# Xcode user-specific state (per-developer, should not be shared)
+xcuserdata/
+
+# Build products
+build/
+DerivedData/
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# CocoaPods (uncomment if Pods are checked out locally instead of via SPM/Podfile)
+# Pods/
+
+# Carthage
+Carthage/Build/
+
+# Obj-C/Swift specific
+*.hmap
+
+# App packaging
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# macOS
+.DS_Store
