@@ -6,10 +6,6 @@
 //
 
 import SwiftUI
-import GRPCCore
-import GRPCNIOTransportHTTP2
-import GRPCProtobuf
-import SwiftProtobuf
 
 struct ContentView: View {
   var body: some View {
@@ -18,18 +14,28 @@ struct ContentView: View {
         .imageScale(.large)
         .foregroundStyle(.tint)
       Text("Hello, world!")
-      Button("Click Me") {
+      Button("Test Unary") {
         Task {
-          try await withGRPCClient(
-            transport: .http2NIOPosix(
-              target: .dns(host: "localhost", port: 50051),
-              transportSecurity: .plaintext
-            )
-          ) { client in
-            let greeter = Greeter_Greeter.Client(wrapping: client)
-            let reply = try await greeter.sayHello(.with { $0.name = "taro" })
-            print(reply.message)  // ここがdebug consoleに出る
+          let message = try await testUnary()
+          print(message)
+        }
+      }
+      Button("Test Server Stream") {
+        Task {
+          for try await message in testServerStream() {
+            print(message)
           }
+        }
+      }
+      Button("Test Client Stream") {
+        Task {
+          let stream = testClientStream()
+          await stream.send("taro")
+          try await Task.sleep(nanoseconds: 1_000_000_000)
+          await stream.send("hanako")
+          stream.finish()
+          let message = try await stream.result.value
+          print(message)
         }
       }
     }

@@ -24,12 +24,19 @@ $ brew install grpcurl
 
 # サービス一覧
 $ grpcurl -plaintext localhost:50051 list
+
+# greeter.Greeterが持つメソッド一覧
+$ grpcurl -plaintext localhost:50051 list greeter.Greeter
+```
+
+出力例(そのままシェルに貼り付けないこと。以下はコマンドの実行結果であって
+コマンドではない):
+
+```
 greeter.Greeter
 grpc.reflection.v1.ServerReflection
 grpc.reflection.v1alpha.ServerReflection
 
-# greeter.Greeterが持つメソッド一覧
-$ grpcurl -plaintext localhost:50051 list greeter.Greeter
 greeter.Greeter.SayChat
 greeter.Greeter.SayHello
 greeter.Greeter.SayHelloAgain
@@ -39,7 +46,12 @@ greeter.Greeter.SayHelloToMany
 #### SayHello (unary)
 
 ```bash
-$ grpcurl -plaintext -d '{"name": "taro"}' localhost:50051 greeter.Greeter.SayHello
+grpcurl -plaintext -d '{"name": "taro"}' localhost:50051 greeter.Greeter.SayHello
+```
+
+出力例:
+
+```
 {
   "message": "Hello taro"
 }
@@ -48,7 +60,12 @@ $ grpcurl -plaintext -d '{"name": "taro"}' localhost:50051 greeter.Greeter.SayHe
 #### SayHelloAgain (server streaming)
 
 ```bash
-$ grpcurl -plaintext -d '{"name": "taro"}' localhost:50051 greeter.Greeter.SayHelloAgain
+grpcurl -plaintext -d '{"name": "taro"}' localhost:50051 greeter.Greeter.SayHelloAgain
+```
+
+出力例:
+
+```
 {
   "message": "Hello taro"
 }
@@ -59,23 +76,61 @@ $ grpcurl -plaintext -d '{"name": "taro"}' localhost:50051 greeter.Greeter.SayHe
 
 #### SayHelloToMany (client streaming)
 
+`echo -e '...\n...' | grpcurl -d @ ...`だと標準入力をまとめて渡しているように見えて、
+クライアントが複数回に分けて送っていることが伝わりにくい。`grpcurl`は標準入力を
+逐次読みながら送るので、間に`sleep`を挟むと送信タイミングがずれていることが
+サーバー側のログ(タイムスタンプ)で確認できる:
+
 ```bash
-$ echo -e '{"name": "taro"}\n{"name": "hanako"}' | grpcurl -d @ -plaintext localhost:50051 greeter.Greeter.SayHelloToMany
+(echo '{"name": "taro"}'; sleep 1; echo '{"name": "hanako"}') \
+    | grpcurl -d @ -plaintext localhost:50051 greeter.Greeter.SayHelloToMany
+```
+
+出力例:
+
+```
 {
   "message": "Hello! taro, hanako"
 }
 ```
 
+サーバー側のログで、1秒後に届いていることを確認できる:
+
+```bash
+$ docker compose logs grpc --no-log-prefix --tail 4
+```
+
 #### SayChat (bidirectional streaming)
 
 ```bash
-$ echo -e '{"name": "taro"}\n{"name": "hanako"}' | grpcurl -d @ -plaintext localhost:50051 greeter.Greeter.SayChat
+$ (echo '{"name": "taro"}'; sleep 1; echo '{"name": "hanako"}') \
+    | grpcurl -d @ -plaintext localhost:50051 greeter.Greeter.SayChat
+```
+
+出力例:
+
+```
 {
   "message": "Hello taro"
 }
 {
   "message": "Hello hanako"
 }
+```
+
+サーバー側のログでも、1秒後に2件目を受信していることを確認できる:
+
+```bash
+$ docker compose logs grpc --no-log-prefix --tail 4
+```
+
+出力例:
+
+```
+2026/09/22 11:48:38 Open SayChat
+2026/09/22 11:48:38 Received SayChat: taro
+2026/09/22 11:48:39 Received SayChat: hanako   # 1秒後に届いている
+2026/09/22 11:48:39 Closed SayChat
 ```
 
 ## iOS
