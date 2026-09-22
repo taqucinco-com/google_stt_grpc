@@ -39,9 +39,22 @@
 		BB12BB99305F66FE00B5809E /* google_stt_grpcUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = google_stt_grpcUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		BB2503F3306245B700E750C3 /* Exceptions for "google_stt_grpc" folder in "google_stt_grpc" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"google-stt-grpc-Info.plist",
+			);
+			target = BB12BB81305F66FC00B5809E /* google_stt_grpc */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BB12BB84305F66FC00B5809E /* google_stt_grpc */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BB2503F3306245B700E750C3 /* Exceptions for "google_stt_grpc" folder in "google_stt_grpc" target */,
+			);
 			path = google_stt_grpc;
 			sourceTree = "<group>";
 		};
@@ -442,6 +455,8 @@
 				DEVELOPMENT_TEAM = 7SGSPTV4C4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "google-stt-grpc-Info.plist";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "local test";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -474,6 +489,8 @@
 				DEVELOPMENT_TEAM = 7SGSPTV4C4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "google-stt-grpc-Info.plist";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "local test";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
