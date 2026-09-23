@@ -1,5 +1,5 @@
 //
-//  PCMFormatConverter.swift
+//  PCMFormatConverterNode.swift
 //  google_stt_grpc
 //
 //  Created by sudo takuya on 2026/09/23.
@@ -10,9 +10,9 @@ import Foundation
 
 /// AVAudioPCMBuffer(ネイティブフォーマット)を、Google STTが要求する
 /// LINEAR16(16bit signed PCM, 16kHz, mono)のAVAudioPCMBufferに変換するだけの
-/// 責務を持つ。バイト列(Data)化は行わない(PCMBufferSerializerの責務)ので、
+/// 責務を持つ。バイト列(Data)化は行わない(PCMBufferSerializerNodeの責務)ので、
 /// 録音のgRPC送信以外の用途(ファイル書き込み等)にも転用しやすい。
-final class PCMFormatConverter: AudioPipelineNode {
+final class PCMFormatConverterNode: AudioPipelineNode {
   private let converter: AVAudioConverter
   let outputFormat: AVAudioFormat
   var onOutput: ((AVAudioPCMBuffer) -> Void)?

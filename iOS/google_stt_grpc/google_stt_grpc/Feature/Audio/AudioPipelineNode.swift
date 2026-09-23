@@ -19,10 +19,13 @@ protocol AudioPipelineNode: AnyObject {
 }
 
 extension AudioPipelineNode {
-  /// 次段ノードの`process`を`onOutput`として接続する。
+  /// 次段ノードの`process`を`onOutput`として接続する。パイプラインは常に
+  /// 一直線(循環しない)なので、`next`は強参照で保持する。これにより
+  /// 呼び出し側は先頭ノードだけを保持すればチェーン全体が生存し続ける
+  /// (中間ノードを個別に強参照し続ける必要がない)。
   @discardableResult
   func connect<Next: AudioPipelineNode>(to next: Next) -> Next where Next.Input == Output {
-    onOutput = { [weak next] output in next?.process(output) }
+    onOutput = { output in next.process(output) }
     return next
   }
 }
