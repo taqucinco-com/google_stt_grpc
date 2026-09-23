@@ -470,7 +470,8 @@ $ docker compose down
 
 [google-auth-library](https://github.com/googleapis/google-auth-library-nodejs)の
 `GoogleAuth`を使い、`GET /token`でGoogle STT用のアクセストークンを発行する
-(`{"access_token": "..."}`をJSONで返す。認証情報が読めない場合は500)。
+(`{"access_token": "...", "expires_in": 3599}`をJSONで返す。認証情報が
+読めない場合は500)。
 
 ```ts
 const auth = new GoogleAuth({
@@ -480,9 +481,23 @@ const auth = new GoogleAuth({
 app.get('/token', async (c) => {
   const client = await auth.getClient()
   const { token } = await client.getAccessToken()
-  return c.json({ access_token: token })
+  // getAccessToken()自体はtokenしか返さないため、有効期限は
+  // 副作用で更新されるclient.credentials.expiry_date(epoch ms)から算出する。
+  const expiryDate = client.credentials.expiry_date
+  const expiresIn = expiryDate ? Math.floor((expiryDate - Date.now()) / 1000) : null
+  return c.json({ access_token: token, expires_in: expiresIn })
 })
 ```
+
+#### トークンの生存期間
+
+Googleのサービスアカウントアクセストークンはデフォルトで**最大1時間
+(3600秒)**が有効期限。実際に発行して確認したところ`expires_in: 3599`
+(≒3600秒)だった。組織ポリシー
+(`constraints/iam.allowServiceAccountCredentialLifetimeExtension`)で
+最大12時間まで延長可能だが、今回は特に設定していないのでデフォルトの
+1時間。iOSアプリ側はこの`expires_in`を見て、期限が近づいたら`/token`を
+再度叩き直す実装が必要になる(「未解決事項」参照)。
 
 `GoogleAuth`はADC(Application Default Credentials)の探索順に従い、
 `GOOGLE_APPLICATION_CREDENTIALS`環境変数が指すJSONキーファイルを読みに行く。
@@ -524,12 +539,47 @@ environment variable: The file at /usr/src/app/secrets/service-account.json does
 exist, or it is not a file. ENOENT: no such file or directory, ...
 ```
 
-キー配置後に`access_token`が返ってくることの確認は、実際のサービスアカウントを
-用意してから行う(未検証)。
+#### 動作確認(キー配置後)
+
+実際にサービスアカウントを作成し(`roles/speech.client`付与、Speech-to-Text API
+有効化)、`hono/secrets/service-account.json`にJSONキーを配置した状態で確認済み:
+
+```bash
+$ docker compose up -d --build hono
+$ curl -s -o /tmp/token_response.json -w "HTTP %{http_code}\n" http://localhost:8787/token
+HTTP 200
+```
+
+```json
+{"access_token": "ya29.c.c0AZ4...(実際は1024文字程度のトークン)", "expires_in": 3599}
+```
+
+`ya29.`で始まる実際のGoogle OAuth2アクセストークンが返ることを確認した
+(トークン値そのものは秘匿情報なのでログ・ドキュメントには残さない)。
+
+#### トークンの有効性そのものの確認(Google側のtokeninfoエンドポイント)
+
+`/token`が返した値が「本当にGoogleに通用するトークンか」を、Google自身の
+検証エンドポイント[`https://oauth2.googleapis.com/tokeninfo`](https://developers.google.com/identity/protocols/oauth2)
+に投げて確認した:
+
+```bash
+$ curl -s "https://oauth2.googleapis.com/tokeninfo?access_token=${TOKEN}"
+```
+
+```json
+{
+  "scope": "https://www.googleapis.com/auth/cloud-platform",
+  "expires_in": 3599,
+  "access_type": "online"
+}
+```
+
+`HTTP 200`で返り、`scope`が要求した`cloud-platform`と一致、`expires_in`も
+`/token`のレスポンスと一致した。これで`hono`が発行しているのは
+Google自身が正当と認める本物のアクセストークンであることを確認できた。
 
 ### 未解決事項(今後の実装で詰める)
 
 - iOSアプリ側はアクセストークンの有効期限管理・失効時の再取得ロジックを
   自前で持つ必要がある(フルプロキシ方式なら不要だった責務)。
-- 実際にサービスアカウントのJSONキーを配置した状態での`/token`の動作確認は
-  まだ行っていない(キー未発行のため)。
