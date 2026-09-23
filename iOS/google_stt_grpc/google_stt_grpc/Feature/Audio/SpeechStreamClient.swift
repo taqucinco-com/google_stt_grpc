@@ -31,7 +31,7 @@ private struct AuthorizationInjectingInterceptor: ClientInterceptor {
 }
 
 /// Google Cloud Speech-to-Text(v1)のStreamingRecognizeを叩く。
-/// 最初のメッセージはconfigのみ、以降はaudio_content(LINEAR16 PCM)のみを送る。
+/// 最初のメッセージはconfigのみ、以降はaudio_content(OGG_OPUS)のみを送る。
 func testSpeechStream(languageCode: String = "ja-JP") -> (send: (Data) -> Void, finish: () -> Void, result: AsyncThrowingStream<String, Error>) {
   let (outbound, outboundContinuation) = AsyncStream<Data>.makeStream()
   let (inbound, inboundContinuation) = AsyncThrowingStream<String, Error>.makeStream()
@@ -54,8 +54,8 @@ func testSpeechStream(languageCode: String = "ja-JP") -> (send: (Data) -> Void, 
           try await writer.write(.with {
             $0.streamingConfig = .with {
               $0.config = .with {
-                $0.encoding = .linear16
-                $0.sampleRateHertz = 16000
+                $0.encoding = .oggOpus
+                $0.sampleRateHertz = 48000
                 $0.languageCode = languageCode
               }
               $0.interimResults = true

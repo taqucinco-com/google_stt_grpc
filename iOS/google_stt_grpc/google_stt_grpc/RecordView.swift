@@ -60,16 +60,30 @@ struct RecordView: View {
                 }
               }
 
-              var converter: PCMFormatConverter?
+              // PCMFrameBufferNode → OpusEncoderNode → oggMuxer を組み立てる
+              // 先頭ノードさえ保持すればチェーン全体が生存し続ける。
+              var frameBuffer: PCMFrameBufferNode?
+              var encoder: OpusEncoderNode?
+              let oggMuxer = OggMuxerNode()
+
+              func setupPipeline(format: AVAudioFormat) {
+                guard let newEncoder = OpusEncoderNode(inputFormat: format) else { return }
+                let newFrameBuffer = PCMFrameBufferNode(format: format)
+                newFrameBuffer.connect(to: newEncoder)
+                newEncoder.connect(to: oggMuxer)
+                frameBuffer = newFrameBuffer
+                encoder = newEncoder
+                oggMuxer.onOutput = { data in speechStream.send(data) }
+              }
+
               try await recorder.start { buffer in
                 continuation.yield(AudioLevel.dBFS(of: buffer))
 
-                if converter == nil {
-                  converter = PCMFormatConverter(inputFormat: buffer.format)
+                if frameBuffer == nil {
+                  setupPipeline(format: buffer.format)
                 }
-                if let data = converter?.convert(buffer) {
-                  speechStream.send(data)
-                }
+                // 先頭ノードにバッファを送るとチェーン全体を通じて処理される
+                frameBuffer?.process(buffer)
               }
               isRecording = true
             } catch {
