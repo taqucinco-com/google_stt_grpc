@@ -5,3 +5,10 @@ services:
       - "50051:50051"
     volumes:
       - ./grpc:/usr/src/app
+  hono:
+    build: ./hono
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./hono:/usr/src/app
+      - /usr/src/app/node_modules

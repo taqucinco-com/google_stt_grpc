@@ -20,7 +20,8 @@ iOSアプリからGoogle Cloud Speech-to-Text (STT) のgRPC streaming APIを利�
 │   ├── main.go
 │   ├── helloworld/  Greeterサービス(proto + 生成コード)
 │   └── Dockerfile
-├── docker-compose.yml  grpcサービスを50051番ポートで起動
+├── hono/            Hono(Node.js)で実装した、Google STT用アクセストークン発行サーバー
+├── docker-compose.yml  grpc(50051番)・hono(8787番)サービスを起動
 ├── iOS/google_stt_grpc/  SwiftUIアプリ(Xcodeプロジェクト)
 ├── Android/         未着手
 └── docs/adr/        Architecture Decision Record (yyyyMMdd.md形式)
