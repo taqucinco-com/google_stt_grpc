@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BBD0B48130628D8B00B32C08 /* AsyncAlgorithms in Frameworks */ = {isa = PBXBuildFile; productRef = BBD0B48030628D8B00B32C08 /* AsyncAlgorithms */; };
+		BBD0B48330628D8B00B32C08 /* AsyncStreaming in Frameworks */ = {isa = PBXBuildFile; productRef = BBD0B48230628D8B00B32C08 /* AsyncStreaming */; };
 		BBFF2621305F920300677CD8 /* GRPCCodeGen in Frameworks */ = {isa = PBXBuildFile; productRef = BBFF2620305F920300677CD8 /* GRPCCodeGen */; };
 		BBFF2623305F920300677CD8 /* GRPCCore in Frameworks */ = {isa = PBXBuildFile; productRef = BBFF2622305F920300677CD8 /* GRPCCore */; };
 		BBFF2625305F920300677CD8 /* GRPCInProcessTransport in Frameworks */ = {isa = PBXBuildFile; productRef = BBFF2624305F920300677CD8 /* GRPCInProcessTransport */; };
@@ -80,8 +82,10 @@
 				BBFF2621305F920300677CD8 /* GRPCCodeGen in Frameworks */,
 				BBFF2623305F920300677CD8 /* GRPCCore in Frameworks */,
 				BBFF2628305F927200677CD8 /* GRPCNIOTransportHTTP2 in Frameworks */,
+				BBD0B48330628D8B00B32C08 /* AsyncStreaming in Frameworks */,
 				BBFF262C305F927200677CD8 /* GRPCNIOTransportHTTP2TransportServices in Frameworks */,
 				BBFF2625305F920300677CD8 /* GRPCInProcessTransport in Frameworks */,
+				BBD0B48130628D8B00B32C08 /* AsyncAlgorithms in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -158,6 +162,8 @@
 				BBFF2629305F927200677CD8 /* GRPCNIOTransportHTTP2Posix */,
 				BBFF262B305F927200677CD8 /* GRPCNIOTransportHTTP2TransportServices */,
 				BBFF262F305F93AB00677CD8 /* GRPCProtobuf */,
+				BBD0B48030628D8B00B32C08 /* AsyncAlgorithms */,
+				BBD0B48230628D8B00B32C08 /* AsyncStreaming */,
 			);
 			productName = google_stt_grpc;
 			productReference = BB12BB82305F66FC00B5809E /* google_stt_grpc.app */;
@@ -245,6 +251,7 @@
 				BBFF261F305F920300677CD8 /* XCRemoteSwiftPackageReference "grpc-swift-2" */,
 				BBFF2626305F927200677CD8 /* XCRemoteSwiftPackageReference "grpc-swift-nio-transport" */,
 				BBFF262D305F929A00677CD8 /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */,
+				BBD0B47F30628D8B00B32C08 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BB12BB83305F66FC00B5809E /* Products */;
@@ -639,6 +646,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		BBD0B47F30628D8B00B32C08 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-async-algorithms.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.5;
+			};
+		};
 		BBFF261F305F920300677CD8 /* XCRemoteSwiftPackageReference "grpc-swift-2" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/grpc/grpc-swift-2.git";
@@ -666,6 +681,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		BBD0B48030628D8B00B32C08 /* AsyncAlgorithms */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BBD0B47F30628D8B00B32C08 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */;
+			productName = AsyncAlgorithms;
+		};
+		BBD0B48230628D8B00B32C08 /* AsyncStreaming */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BBD0B47F30628D8B00B32C08 /* XCRemoteSwiftPackageReference "swift-async-algorithms" */;
+			productName = AsyncStreaming;
+		};
 		BBFF2620305F920300677CD8 /* GRPCCodeGen */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = BBFF261F305F920300677CD8 /* XCRemoteSwiftPackageReference "grpc-swift-2" */;
