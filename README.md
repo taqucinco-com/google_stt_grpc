@@ -271,3 +271,177 @@ Task {
 1. `docker compose up -d --build` でGoサーバーを起動
 2. iOSアプリをSimulatorでビルド・実行してボタンをタップ
 3. Xcodeのdebug consoleに`Hello taro`のようなメッセージが出れば成功
+
+## Google Cloud Speech-to-Text (STT) gRPC API
+
+Google Cloud Speech-to-Text v1のgRPC streaming APIのリファレンス。
+
+### サービス定義
+
+`google.cloud.speech.v1.Speech`サービスの`StreamingRecognize`は
+bidirectional streaming RPC。
+
+```protobuf
+rpc StreamingRecognize(stream StreamingRecognizeRequest)
+    returns (stream StreamingRecognizeResponse) {}
+```
+
+### メッセージフロー
+
+```protobuf
+message StreamingRecognizeRequest {
+  oneof streaming_request {
+    StreamingRecognitionConfig streaming_config = 1;
+    bytes audio_content = 2;
+  }
+}
+```
+
+- **最初の1通目**: `streaming_config`のみを送る(`audio_content`は含めない)
+- **2通目以降**: `audio_content`のみを送る(生バイト列。base64ではない)
+
+### RecognitionConfigの主要フィールド
+
+```protobuf
+message RecognitionConfig {
+  AudioEncoding encoding = 1;
+  int32 sample_rate_hertz = 2;      // 8000〜48000。16000が最適
+  string language_code = 3;          // 必須。例: "ja-JP"
+  ...
+}
+```
+
+### AudioEncoding
+
+```protobuf
+enum AudioEncoding {
+  ENCODING_UNSPECIFIED = 0;
+  LINEAR16 = 1;   // 非圧縮16bit signed PCM。現在このプロジェクトで使用中
+  FLAC = 2;
+  OGG_OPUS = 6;   // 8000/12000/16000/24000/48000Hz対応。未対応
+  WEBM_OPUS = 9;
+  ...
+}
+```
+
+### エンドポイント・認証
+
+- エンドポイント: `speech.googleapis.com:443`(TLS)
+- 認証: gRPCのメタデータに`authorization: Bearer <アクセストークン>`を付与する
+  (サービスアカウント経由のOAuth2アクセストークン。発行方法は後述の`hono/`参照)
+- APIキー単体では認証できない(IAMの権限チェックが必要なため)
+
+### 制限事項
+
+- ストリーミングリクエスト1通あたり10MBの上限
+- 1ストリームは数分程度で切れる。長時間録音する場合は再接続処理が必要
+
+### バージョン
+
+v1を使用(v1p1beta1、リージョナルエンドポイントを使うv2も存在する)。
+
+### 参考ドキュメント
+
+- [Package google.cloud.speech.v1 proto (googleapis/googleapis)](https://github.com/googleapis/googleapis/blob/master/google/cloud/speech/v1/cloud_speech.proto)
+- [Transcribe audio from streaming input | Cloud Speech-to-Text](https://docs.cloud.google.com/speech-to-text/docs/v1/transcribe-streaming-audio)
+- [Package google.cloud.speech.v2 | Cloud Speech-to-Text](https://docs.cloud.google.com/speech-to-text/docs/reference/rpc/google.cloud.speech.v2)
+- [gRPC Authentication guide](https://grpc.io/docs/guides/auth/)
+
+## 認証トークン発行サーバー(`hono/`)
+
+iOSアプリはサービスアカウントの秘密鍵を持たず、`hono/`が発行する
+アクセストークンを使ってGoogle STTへ接続する。
+
+### 起動
+
+```bash
+$ docker compose up -d --build hono
+$ docker compose logs hono --no-log-prefix --tail 10
+```
+
+出力例:
+
+```
+> dev
+> tsx watch src/index.ts
+
+Server is running on http://localhost:8787
+```
+
+停止する場合:
+
+```bash
+$ docker compose down
+```
+
+### サービスアカウントの準備
+
+1. GCPコンソールでサービスアカウントを作成し、`roles/speech.client`
+   ([Speech-to-Text predefined role](https://docs.cloud.google.com/iam/docs/roles-permissions/speech)、
+   呼び出し専用の最小権限ロール)を付与する。
+2. JSONキーを発行し、`hono/secrets/service-account.json`として配置する
+   (`.gitkeep`以外gitignore済み。コミットしない)。
+3. `docker-compose.yml`の`hono`サービスで`GOOGLE_APPLICATION_CREDENTIALS`を
+   このパスに設定済み(`./hono:/usr/src/app`のbind mountでコンテナ内からも
+   読める)。
+
+### `GET /`
+
+疎通確認用。`"hello, hono!"`を返す。
+
+```bash
+$ curl -s http://localhost:8787/
+hello, hono!
+```
+
+### `GET /token`
+
+[google-auth-library](https://github.com/googleapis/google-auth-library-nodejs)の
+`GoogleAuth`(スコープ`https://www.googleapis.com/auth/cloud-platform`)で
+Google STT用のアクセストークンを発行する。
+
+```bash
+$ curl -s http://localhost:8787/token
+{"access_token": "ya29.c.c0AZ4...", "expires_in": 3599}
+```
+
+- `access_token`: サービスアカウントの秘密鍵から発行したOAuth2アクセストークン
+- `expires_in`: 有効期限(秒)。デフォルトで約1時間(3600秒)
+- 認証情報(`hono/secrets/service-account.json`)が読めない場合は
+  `500 {"error": "failed to issue access token"}`
+
+## iOSからGoogle STTへの接続
+
+[Feature/Audio/SpeechStreamClient.swift](iOS/google_stt_grpc/google_stt_grpc/Feature/Audio/SpeechStreamClient.swift)が
+`speech.googleapis.com:443`へTLS接続し、`StreamingRecognize`で音声を送って
+文字起こし結果を受け取る。`hono`の`/token`から取得したアクセストークンを
+`ClientInterceptor`で`authorization: Bearer <token>`としてリクエストの
+metadataに注入している。
+
+### proto定義
+
+[gRPC/speech.proto](iOS/google_stt_grpc/google_stt_grpc/gRPC/speech.proto)は、
+Google STT v1のproto本家のうち`StreamingRecognize`に必要な最小限の
+メッセージだけを抜粋した自己完結型のprotoで、外部importを持たない。
+package名・service名・method名・フィールド番号は本家と完全に一致している。
+
+### grpc-swift 2特有のポイント
+
+- `ClientInterceptor.intercept`の`next`クロージャ引数には`@concurrent`属性が
+  必要(このプロジェクトの`SWIFT_APPROACHABLE_CONCURRENCY`設定に起因)。
+- `Metadata`への値の追加は`request.metadata.addString(_:forKey:)`を使う
+  (subscript代入は不可)。
+- `TransportSecurity.tls`(スタティックプロパティ)でデフォルト設定のTLSが使える。
+
+### 音声処理パイプライン
+
+`RecordView`が「録音を開始」タップで以下を行う。
+
+1. [AudioRecorder](iOS/google_stt_grpc/google_stt_grpc/Feature/Audio/AudioRecorder.swift)が
+   `AVAudioEngine`でマイク入力をバッファリング
+2. [PCMFormatConverter](iOS/google_stt_grpc/google_stt_grpc/Feature/Audio/PCMFormatConverter.swift)が
+   `AVAudioConverter`でLINEAR16(16bit signed PCM, 16kHz, mono)に変換
+3. `SpeechStreamClient`が変換済みデータをGoogle STTへストリーミング送信し、
+   文字起こし結果を画面上の「認識結果」に表示
+
+現状はLINEAR16(非圧縮)のみに対応。OPUS等codecには未対応。

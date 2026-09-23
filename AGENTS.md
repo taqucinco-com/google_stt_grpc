@@ -10,7 +10,9 @@ iOSアプリからGoogle Cloud Speech-to-Text (STT) のgRPC streaming APIを利�
 
 1. 簡単なgRPCサーバーを立てる(`grpc/`) — 完了。[docs/adr/20260920.md](docs/adr/20260920.md)
 2. iOS Swift側でgRPC Clientの実装を確立する(`iOS/`) — 完了
-3. (1)(2)の土台をGoogle STT gRPCに適用する — 計画中。[docs/adr/20260923.md](docs/adr/20260923.md)
+3. (1)(2)の土台をGoogle STT gRPCに適用する — iOSからGoogle STTへの直接接続・
+   文字起こしまで動作確認済み。残るはOPUS等codecの検証。
+   [docs/adr/20260923.md](docs/adr/20260923.md)
 
 ## ディレクトリ構成
 
@@ -20,7 +22,8 @@ iOSアプリからGoogle Cloud Speech-to-Text (STT) のgRPC streaming APIを利�
 │   ├── main.go
 │   ├── helloworld/  Greeterサービス(proto + 生成コード)
 │   └── Dockerfile
-├── docker-compose.yml  grpcサービスを50051番ポートで起動
+├── hono/            Hono(Node.js)で実装した、Google STT用アクセストークン発行サーバー
+├── docker-compose.yml  grpc(50051番)・hono(8787番)サービスを起動
 ├── iOS/google_stt_grpc/  SwiftUIアプリ(Xcodeプロジェクト)
 ├── Android/         未着手
 └── docs/adr/        Architecture Decision Record (yyyyMMdd.md形式)

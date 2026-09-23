@@ -52,6 +52,16 @@ struct HomeView: View {
           stream.finish()
         }
       }
+      Button("Test Fetch Token") {
+        Task {
+          do {
+            let token = try await AuthTokenClient().fetchToken()
+            print("AuthToken: expiresIn=\(String(describing: token.expiresIn)) accessToken=\(token.accessToken.prefix(12))...")
+          } catch {
+            print("AuthToken error: \(error)")
+          }
+        }
+      }
     }
     .padding()
   }

@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+// Google Cloud Speech-to-Text v1 のうち、StreamingRecognizeで使う
+// 最小限のメッセージ定義のみを抜粋したサブセット。
+// 本家: https://github.com/googleapis/googleapis/blob/master/google/cloud/speech/v1/cloud_speech.proto
+//
+// フィールド番号・package名・service名・method名は本家と完全に一致させている
+// (実際のGoogle STTとワイヤー互換性を保つため)。使わないRPC(Recognize /
+// LongRunningRecognize)や、google/api/*・google/rpc/status.proto等の
+// 外部importが必要なフィールド(error, speech_event_type等)は省略している。
+// protobufは未知フィールドを読み飛ばすだけなので、受信側でこれらを
+// 宣言していなくても安全に無視される。
+
+package google.cloud.speech.v1;
+
+service Speech {
+  rpc StreamingRecognize(stream StreamingRecognizeRequest)
+      returns (stream StreamingRecognizeResponse) {}
+}
+
+message StreamingRecognizeRequest {
+  oneof streaming_request {
+    StreamingRecognitionConfig streaming_config = 1;
+    bytes audio_content = 2;
+  }
+}
+
+message StreamingRecognitionConfig {
+  RecognitionConfig config = 1;
+  bool single_utterance = 2;
+  bool interim_results = 3;
+}
+
+message RecognitionConfig {
+  enum AudioEncoding {
+    ENCODING_UNSPECIFIED = 0;
+    LINEAR16 = 1;
+    FLAC = 2;
+    MULAW = 3;
+    AMR = 4;
+    AMR_WB = 5;
+    OGG_OPUS = 6;
+    SPEEX_WITH_HEADER_BYTE = 7;
+    MP3 = 8;
+    WEBM_OPUS = 9;
+  }
+  AudioEncoding encoding = 1;
+  int32 sample_rate_hertz = 2;
+  string language_code = 3;
+}
+
+message StreamingRecognizeResponse {
+  repeated StreamingRecognitionResult results = 2;
+}
+
+message StreamingRecognitionResult {
+  repeated SpeechRecognitionAlternative alternatives = 1;
+  bool is_final = 2;
+}
+
+message SpeechRecognitionAlternative {
+  string transcript = 1;
+  float confidence = 2;
+}
