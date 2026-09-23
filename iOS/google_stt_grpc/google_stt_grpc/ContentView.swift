@@ -9,51 +9,16 @@ import SwiftUI
 
 struct ContentView: View {
   var body: some View {
-    VStack {
-      Image(systemName: "globe")
-        .imageScale(.large)
-        .foregroundStyle(.tint)
-      Text("Hello, world!")
-      Button("Test Unary") {
-        Task {
-          let message = try await testUnary()
-          print(message)
+    TabView {
+      HomeView()
+        .tabItem {
+          Label("Home", systemImage: "house")
         }
-      }
-      Button("Test Server Stream") {
-        Task {
-          for try await message in testServerStream() {
-            print(message)
-          }
+      RecordView()
+        .tabItem {
+          Label("Record", systemImage: "mic")
         }
-      }
-      Button("Test Client Stream") {
-        Task {
-          let stream = testClientStream()
-          await stream.send("taro")
-          try await Task.sleep(nanoseconds: 1_000_000_000)
-          await stream.send("hanako")
-          stream.finish()
-          let message = try await stream.result.value
-          print(message)
-        }
-      }
-      Button("Test Bidi Stream") {
-        let stream = testBidiStream()
-        Task {
-          for try await message in stream.result {
-            print(message)
-          }
-        }
-        Task {
-          await stream.send("taro")
-          try await Task.sleep(nanoseconds: 1_000_000_000)
-          await stream.send("hanako")
-          stream.finish()
-        }
-      }
     }
-    .padding()
   }
 }
 
