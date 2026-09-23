@@ -274,12 +274,11 @@ Task {
 
 ## Google Cloud Speech-to-Text (STT) gRPC API
 
-Step 3(非圧縮データ送信・OPUS対応)の実装前に調べた、STTのgRPC streaming API
-の仕様。実装時にここを見返す用のメモ。
+Google Cloud Speech-to-Text v1のgRPC streaming APIのリファレンス。
 
 ### サービス定義
 
-`google.cloud.speech.v1.Speech`サービスの`StreamingRecognize`が
+`google.cloud.speech.v1.Speech`サービスの`StreamingRecognize`は
 bidirectional streaming RPC。
 
 ```protobuf
@@ -287,10 +286,7 @@ rpc StreamingRecognize(stream StreamingRecognizeRequest)
     returns (stream StreamingRecognizeResponse) {}
 ```
 
-これまで実装した`Greeter.SayChat`と同じ形(bidi streaming)なので、
-clientの実装パターンはそのまま流用できる見込み。
-
-### メッセージフロー(重要な制約)
+### メッセージフロー
 
 ```protobuf
 message StreamingRecognizeRequest {
@@ -304,8 +300,6 @@ message StreamingRecognizeRequest {
 - **最初の1通目**: `streaming_config`のみを送る(`audio_content`は含めない)
 - **2通目以降**: `audio_content`のみを送る(生バイト列。base64ではない)
 
-`SayChat`にはなかった非対称なプロトコルなので、実装時に明示的に意識する必要がある。
-
 ### RecognitionConfigの主要フィールド
 
 ```protobuf
@@ -317,63 +311,34 @@ message RecognitionConfig {
 }
 ```
 
-### AudioEncoding(Step 3/4に直結)
+### AudioEncoding
 
 ```protobuf
 enum AudioEncoding {
   ENCODING_UNSPECIFIED = 0;
-  LINEAR16 = 1;   // 非圧縮16bit signed PCM ← Step 3で使う
+  LINEAR16 = 1;   // 非圧縮16bit signed PCM。現在このプロジェクトで使用中
   FLAC = 2;
-  OGG_OPUS = 6;   // ← Step 4のOPUS検証で使う。8000/12000/16000/24000/48000Hz対応
+  OGG_OPUS = 6;   // 8000/12000/16000/24000/48000Hz対応。未対応
   WEBM_OPUS = 9;
   ...
 }
 ```
 
-[AudioRecorder](iOS/google_stt_grpc/google_stt_grpc/Feature/Audio/AudioRecorder.swift)が
-現状ネイティブフォーマット(Float32)でバッファを取得しているので、Step 3では
-`AVAudioConverter`で**16bit signed little-endian PCM / 16000Hz**に変換してから
-送る必要がある(公式サンプルもこの組み合わせを使用)。
-
 ### エンドポイント・認証
 
 - エンドポイント: `speech.googleapis.com:443`(TLS)
 - 認証: gRPCのメタデータに`authorization: Bearer <アクセストークン>`を付与する
-  (サービスアカウントの認証情報からOAuth2トークンを生成)。これまでの`grpc/`
-  サーバーは`-plaintext`かつ認証なしだったので、Step 3ではTLS接続+認証ヘッダーの
-  実装が新たに必要になる。
-
-#### APIキーは使えるか
-
-**単体では使えない見込み**。Google Cloudの認証ドキュメントによると
-
-> 標準のAPIキーはプリンシパル(principal)を認証しない。プリンシパルがないと、
-> 呼び出し元が要求された操作を行う権限があるかをIAMでチェックできない
-
-とあり、APIキーは「どのプロジェクトからの呼び出しか」を識別するだけで、
-IAMの権限チェックが必要なSpeech-to-Textを単独では認可できない。
-Speech-to-Text v1の公式認証ドキュメントにもAPIキーによる認証経路の記載は
-一切なく、ADC/サービスアカウント/OAuth2 Bearerトークンのみが案内されている。
-gRPCメタデータに`x-api-key`/`x-goog-api-key`としてAPIキーを渡す非公式な
-試みも見られるが、動作報告は不安定(Broken Pipeで失敗した例もある)。
-
-REST版の`speech:recognize`(unary、ファイル全体を投げる方式)には歴史的に
-`?key=API_KEY`のクイックスタートがあるが、Step 3で使う`StreamingRecognize`は
-gRPC限定のbidirectional streamingであり、この経路は使えない。
-→ 発行したAPIキーはREST版での簡易疎通確認に使い、iOSアプリからのgRPC
-streaming実装ではサービスアカウント+OAuth2 Bearerトークン方式を使う。
+  (サービスアカウント経由のOAuth2アクセストークン。発行方法は後述の`hono/`参照)
+- APIキー単体では認証できない(IAMの権限チェックが必要なため)
 
 ### 制限事項
 
 - ストリーミングリクエスト1通あたり10MBの上限
-- 1ストリームは数分程度で切れる(公式サンプルは60秒〜4-5分でストリーム再接続する
-  ロジックを紹介)ため、長時間録音する場合は再接続処理が必要
+- 1ストリームは数分程度で切れる。長時間録音する場合は再接続処理が必要
 
-### バージョンについて
+### バージョン
 
-v1・v1p1beta1に加えて、より新しいv2 APIも存在する(リージョナルエンドポイント
-`<region>-speech.googleapis.com`を使う点が異なる)。既存の`grpc/`実装との
-対称性やシンプルさを考えるとv1から始めるのが妥当。
+v1を使用(v1p1beta1、リージョナルエンドポイントを使うv2も存在する)。
 
 ### 参考ドキュメント
 
@@ -384,62 +349,17 @@ v1・v1p1beta1に加えて、より新しいv2 APIも存在する(リージョ�
 
 ## 認証トークン発行サーバー(`hono/`)
 
-Step 3でiOSアプリからGoogle STTのgRPCへ直接繋ぐには、
-`authorization: Bearer <アクセストークン>`が必要になる(前掲の
-「エンドポイント・認証」参照)。しかしこのアクセストークンはサービスアカウントの
-秘密鍵から発行するものであり、Googleの公式ベストプラクティスは以下を明言している。
+iOSアプリはサービスアカウントの秘密鍵を持たず、`hono/`が発行する
+アクセストークンを使ってGoogle STTへ接続する。
 
-> クライアントサイドのアプリケーション(ツール、デスクトッププログラム、
-> モバイルアプリなど)では、サービスアカウントを使用しないでください
-
-秘密鍵をモバイルアプリのバイナリに同梱するとリバースエンジニアリングで
-抽出されうるため、モバイルアプリ単体でアクセストークンを安全に得る方法は
-存在しない。そのため、以下の方針を採用する。
-
-### 採用した方式
-
-サービスアカウントの秘密鍵はサーバー側だけが持ち、**アクセストークンの発行のみ**
-を代行する軽量なバックエンドを新設する(iOSからGoogle STTへの通信そのものを
-中継する「フルプロキシ」方式は今回は採用しない。iOSは発行されたトークンを使って
-`speech.googleapis.com`と直接gRPCで話す)。
-
-- ディレクトリ: リポジトリルート直下に`hono/`(`grpc/`・`iOS/`と並ぶ構成)
-- フレームワーク: [Hono](https://hono.dev/)。Nest.jsも候補に挙がったが、
-  この責務は「サービスアカウントの認証情報から`google-auth-library`で
-  アクセストークンを発行してJSONで返す」という単一エンドポイントのみであり、
-  DI・モジュールを前提としたNest.jsの構成を組むほどの規模ではないため、
-  薄いルーティング層のみのHonoを選定した。
-- 起動方法: Dockerで起動し、ローカル環境でも`docker compose up`で
-  `grpc`サービスと一緒に立ち上げられる(`docker-compose.yml`に`grpc`と
-  並ぶ形で`hono`サービスを追加済み)。
-- 秘密鍵の扱い: サービスアカウントの認証情報は`.env`経由で渡し、リポジトリには
-  コミットしない(AGENTS.mdの「注意事項」を参照)。
-
-### セットアップ手順(scaffold)
-
-[Hono公式のNode.js向けセットアップ](https://hono.dev/docs/getting-started/nodejs)
-に従い、リポジトリルートで`create-hono`を使って`hono/`ディレクトリを作成した。
-対話プロンプトを避けるため`--template`/`--pm`/`--install`を明示している。
-
-```bash
-$ npm create hono@latest hono -- --template nodejs --pm npm --install
-```
-
-生成された`hono/src/index.ts`のデフォルト実装(`GET /`で`"Hello Hono!"`を
-返すだけ)に対して、以下の2点だけ変更した。
-
-- ポートを`3000`→`8787`に変更(Dockerの`ports`設定・後述の動作確認と合わせるため)
-- レスポンス文言を`"hello, hono!"`に変更(まずは疎通確認用)
-
-### Dockerで起動する
+### 起動
 
 ```bash
 $ docker compose up -d --build hono
 $ docker compose logs hono --no-log-prefix --tail 10
 ```
 
-出力例(そのままシェルに貼り付けないこと。以下はコマンドの実行結果であって
-コマンドではない):
+出力例:
 
 ```
 > dev
@@ -448,138 +368,80 @@ $ docker compose logs hono --no-log-prefix --tail 10
 Server is running on http://localhost:8787
 ```
 
-### 動作確認
-
-```bash
-$ curl -s http://localhost:8787/
-```
-
-出力例:
-
-```
-hello, hono!
-```
-
 停止する場合:
 
 ```bash
 $ docker compose down
 ```
 
-### `/token`エンドポイント
+### サービスアカウントの準備
+
+1. GCPコンソールでサービスアカウントを作成し、`roles/speech.client`
+   ([Speech-to-Text predefined role](https://docs.cloud.google.com/iam/docs/roles-permissions/speech)、
+   呼び出し専用の最小権限ロール)を付与する。
+2. JSONキーを発行し、`hono/secrets/service-account.json`として配置する
+   (`.gitkeep`以外gitignore済み。コミットしない)。
+3. `docker-compose.yml`の`hono`サービスで`GOOGLE_APPLICATION_CREDENTIALS`を
+   このパスに設定済み(`./hono:/usr/src/app`のbind mountでコンテナ内からも
+   読める)。
+
+### `GET /`
+
+疎通確認用。`"hello, hono!"`を返す。
+
+```bash
+$ curl -s http://localhost:8787/
+hello, hono!
+```
+
+### `GET /token`
 
 [google-auth-library](https://github.com/googleapis/google-auth-library-nodejs)の
-`GoogleAuth`を使い、`GET /token`でGoogle STT用のアクセストークンを発行する
-(`{"access_token": "...", "expires_in": 3599}`をJSONで返す。認証情報が
-読めない場合は500)。
-
-```ts
-const auth = new GoogleAuth({
-  scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-})
-
-app.get('/token', async (c) => {
-  const client = await auth.getClient()
-  const { token } = await client.getAccessToken()
-  // getAccessToken()自体はtokenしか返さないため、有効期限は
-  // 副作用で更新されるclient.credentials.expiry_date(epoch ms)から算出する。
-  const expiryDate = client.credentials.expiry_date
-  const expiresIn = expiryDate ? Math.floor((expiryDate - Date.now()) / 1000) : null
-  return c.json({ access_token: token, expires_in: expiresIn })
-})
-```
-
-#### トークンの生存期間
-
-Googleのサービスアカウントアクセストークンはデフォルトで**最大1時間
-(3600秒)**が有効期限。実際に発行して確認したところ`expires_in: 3599`
-(≒3600秒)だった。組織ポリシー
-(`constraints/iam.allowServiceAccountCredentialLifetimeExtension`)で
-最大12時間まで延長可能だが、今回は特に設定していないのでデフォルトの
-1時間。iOSアプリ側はこの`expires_in`を見て、期限が近づいたら`/token`を
-再度叩き直す実装が必要になる(「未解決事項」参照)。
-
-`GoogleAuth`はADC(Application Default Credentials)の探索順に従い、
-`GOOGLE_APPLICATION_CREDENTIALS`環境変数が指すJSONキーファイルを読みに行く。
-`docker-compose.yml`の`hono`サービスで
-
-```yaml
-environment:
-  - GOOGLE_APPLICATION_CREDENTIALS=/usr/src/app/secrets/service-account.json
-```
-
-と設定済み。`./hono:/usr/src/app`を丸ごとbind mountしているので、
-**ホスト側の`hono/secrets/service-account.json`にサービスアカウントの
-JSONキーを置くだけ**でコンテナ内から読める(`hono/secrets/`は`.gitkeep`を
-除いてgitignore済み)。
-
-#### サービスアカウントの準備手順
-
-1. GCPコンソールでサービスアカウントを作成し、[Speech-to-Text用の
-   predefined role](https://docs.cloud.google.com/iam/docs/roles-permissions/speech)
-   のうち`roles/speech.client`(呼び出し専用の最小権限ロール)を付与する。
-   `roles/speech.admin`・`roles/speech.editor`は管理系操作も含むため不要。
-2. そのサービスアカウントのJSONキーを発行し、`hono/secrets/service-account.json`
-   として配置する(このファイル自体はコミットしない)。
-
-#### 動作確認(キー未配置の状態)
-
-キーを配置する前に、意図通りエラーになることを確認済み:
+`GoogleAuth`(スコープ`https://www.googleapis.com/auth/cloud-platform`)で
+Google STT用のアクセストークンを発行する。
 
 ```bash
-$ curl -s -i http://localhost:8787/token
-HTTP/1.1 500 Internal Server Error
-{"error":"failed to issue access token"}
+$ curl -s http://localhost:8787/token
+{"access_token": "ya29.c.c0AZ4...", "expires_in": 3599}
 ```
 
-```bash
-$ docker compose logs hono --no-log-prefix --tail 5
-Error: Unable to read the credential file specified by the GOOGLE_APPLICATION_CREDENTIALS
-environment variable: The file at /usr/src/app/secrets/service-account.json does not
-exist, or it is not a file. ENOENT: no such file or directory, ...
-```
+- `access_token`: サービスアカウントの秘密鍵から発行したOAuth2アクセストークン
+- `expires_in`: 有効期限(秒)。デフォルトで約1時間(3600秒)
+- 認証情報(`hono/secrets/service-account.json`)が読めない場合は
+  `500 {"error": "failed to issue access token"}`
 
-#### 動作確認(キー配置後)
+## iOSからGoogle STTへの接続
 
-実際にサービスアカウントを作成し(`roles/speech.client`付与、Speech-to-Text API
-有効化)、`hono/secrets/service-account.json`にJSONキーを配置した状態で確認済み:
+[Feature/Audio/SpeechStreamClient.swift](iOS/google_stt_grpc/google_stt_grpc/Feature/Audio/SpeechStreamClient.swift)が
+`speech.googleapis.com:443`へTLS接続し、`StreamingRecognize`で音声を送って
+文字起こし結果を受け取る。`hono`の`/token`から取得したアクセストークンを
+`ClientInterceptor`で`authorization: Bearer <token>`としてリクエストの
+metadataに注入している。
 
-```bash
-$ docker compose up -d --build hono
-$ curl -s -o /tmp/token_response.json -w "HTTP %{http_code}\n" http://localhost:8787/token
-HTTP 200
-```
+### proto定義
 
-```json
-{"access_token": "ya29.c.c0AZ4...(実際は1024文字程度のトークン)", "expires_in": 3599}
-```
+[gRPC/speech.proto](iOS/google_stt_grpc/google_stt_grpc/gRPC/speech.proto)は、
+Google STT v1のproto本家のうち`StreamingRecognize`に必要な最小限の
+メッセージだけを抜粋した自己完結型のprotoで、外部importを持たない。
+package名・service名・method名・フィールド番号は本家と完全に一致している。
 
-`ya29.`で始まる実際のGoogle OAuth2アクセストークンが返ることを確認した
-(トークン値そのものは秘匿情報なのでログ・ドキュメントには残さない)。
+### grpc-swift 2特有のポイント
 
-#### トークンの有効性そのものの確認(Google側のtokeninfoエンドポイント)
+- `ClientInterceptor.intercept`の`next`クロージャ引数には`@concurrent`属性が
+  必要(このプロジェクトの`SWIFT_APPROACHABLE_CONCURRENCY`設定に起因)。
+- `Metadata`への値の追加は`request.metadata.addString(_:forKey:)`を使う
+  (subscript代入は不可)。
+- `TransportSecurity.tls`(スタティックプロパティ)でデフォルト設定のTLSが使える。
 
-`/token`が返した値が「本当にGoogleに通用するトークンか」を、Google自身の
-検証エンドポイント[`https://oauth2.googleapis.com/tokeninfo`](https://developers.google.com/identity/protocols/oauth2)
-に投げて確認した:
+### 音声処理パイプライン
 
-```bash
-$ curl -s "https://oauth2.googleapis.com/tokeninfo?access_token=${TOKEN}"
-```
+`RecordView`が「録音を開始」タップで以下を行う。
 
-```json
-{
-  "scope": "https://www.googleapis.com/auth/cloud-platform",
-  "expires_in": 3599,
-  "access_type": "online"
-}
-```
+1. [AudioRecorder](iOS/google_stt_grpc/google_stt_grpc/Feature/Audio/AudioRecorder.swift)が
+   `AVAudioEngine`でマイク入力をバッファリング
+2. [PCMFormatConverter](iOS/google_stt_grpc/google_stt_grpc/Feature/Audio/PCMFormatConverter.swift)が
+   `AVAudioConverter`でLINEAR16(16bit signed PCM, 16kHz, mono)に変換
+3. `SpeechStreamClient`が変換済みデータをGoogle STTへストリーミング送信し、
+   文字起こし結果を画面上の「認識結果」に表示
 
-`HTTP 200`で返り、`scope`が要求した`cloud-platform`と一致、`expires_in`も
-`/token`のレスポンスと一致した。これで`hono`が発行しているのは
-Google自身が正当と認める本物のアクセストークンであることを確認できた。
-
-### 未解決事項(今後の実装で詰める)
-
-- iOSアプリ側はアクセストークンの有効期限管理・失効時の再取得ロジックを
-  自前で持つ必要がある(フルプロキシ方式なら不要だった責務)。
+現状はLINEAR16(非圧縮)のみに対応。OPUS等codecには未対応。
