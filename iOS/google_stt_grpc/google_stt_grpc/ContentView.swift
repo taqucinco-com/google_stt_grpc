@@ -38,6 +38,20 @@ struct ContentView: View {
           print(message)
         }
       }
+      Button("Test Bidi Stream") {
+        let stream = testBidiStream()
+        Task {
+          for try await message in stream.result {
+            print(message)
+          }
+        }
+        Task {
+          await stream.send("taro")
+          try await Task.sleep(nanoseconds: 1_000_000_000)
+          await stream.send("hanako")
+          stream.finish()
+        }
+      }
     }
     .padding()
   }
