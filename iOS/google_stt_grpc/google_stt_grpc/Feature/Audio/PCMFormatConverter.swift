@@ -9,10 +9,13 @@ import AVFAudio
 import Foundation
 
 /// AVAudioPCMBuffer(ネイティブフォーマット)を、Google STTが要求する
-/// LINEAR16(16bit signed PCM, 16kHz, mono)のDataに変換するだけの責務を持つ。
-final class PCMFormatConverter {
+/// LINEAR16(16bit signed PCM, 16kHz, mono)のAVAudioPCMBufferに変換するだけの
+/// 責務を持つ。バイト列(Data)化は行わない(PCMBufferSerializerの責務)ので、
+/// 録音のgRPC送信以外の用途(ファイル書き込み等)にも転用しやすい。
+final class PCMFormatConverter: AudioPipelineNode {
   private let converter: AVAudioConverter
   let outputFormat: AVAudioFormat
+  var onOutput: ((AVAudioPCMBuffer) -> Void)?
 
   init?(inputFormat: AVAudioFormat) {
     guard let outputFormat = AVAudioFormat(
@@ -26,7 +29,7 @@ final class PCMFormatConverter {
     self.outputFormat = outputFormat
   }
 
-  func convert(_ buffer: AVAudioPCMBuffer) -> Data? {
+  func convert(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
     let ratio = outputFormat.sampleRate / buffer.format.sampleRate
     let outputFrameCapacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 16
     guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: outputFrameCapacity) else {
@@ -45,8 +48,14 @@ final class PCMFormatConverter {
       return buffer
     }
 
-    guard conversionError == nil, let channelData = outputBuffer.int16ChannelData else { return nil }
-    let byteCount = Int(outputBuffer.frameLength) * MemoryLayout<Int16>.size
-    return Data(bytes: channelData[0], count: byteCount)
+    guard conversionError == nil else { return nil }
+    return outputBuffer
+  }
+
+  /// AudioPipelineNode準拠。変換結果を`onOutput`へpushする。
+  func process(_ input: AVAudioPCMBuffer) {
+    if let output = convert(input) {
+      onOutput?(output)
+    }
   }
 }

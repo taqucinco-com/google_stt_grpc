@@ -60,16 +60,19 @@ struct RecordView: View {
                 }
               }
 
+              let serializer = PCMBufferSerializer()
+              serializer.onOutput = { data in speechStream.send(data) }
+
               var converter: PCMFormatConverter?
               try await recorder.start { buffer in
                 continuation.yield(AudioLevel.dBFS(of: buffer))
 
                 if converter == nil {
-                  converter = PCMFormatConverter(inputFormat: buffer.format)
+                  let newConverter = PCMFormatConverter(inputFormat: buffer.format)
+                  newConverter?.connect(to: serializer)
+                  converter = newConverter
                 }
-                if let data = converter?.convert(buffer) {
-                  speechStream.send(data)
-                }
+                converter?.process(buffer)
               }
               isRecording = true
             } catch {
