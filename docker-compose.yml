@@ -9,6 +9,8 @@ services:
     build: ./hono
     ports:
       - "8787:8787"
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/usr/src/app/secrets/service-account.json
     volumes:
       - ./hono:/usr/src/app
       - /usr/src/app/node_modules

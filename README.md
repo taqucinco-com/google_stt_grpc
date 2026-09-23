@@ -466,9 +466,70 @@ hello, hono!
 $ docker compose down
 ```
 
+### `/token`エンドポイント
+
+[google-auth-library](https://github.com/googleapis/google-auth-library-nodejs)の
+`GoogleAuth`を使い、`GET /token`でGoogle STT用のアクセストークンを発行する
+(`{"access_token": "..."}`をJSONで返す。認証情報が読めない場合は500)。
+
+```ts
+const auth = new GoogleAuth({
+  scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+})
+
+app.get('/token', async (c) => {
+  const client = await auth.getClient()
+  const { token } = await client.getAccessToken()
+  return c.json({ access_token: token })
+})
+```
+
+`GoogleAuth`はADC(Application Default Credentials)の探索順に従い、
+`GOOGLE_APPLICATION_CREDENTIALS`環境変数が指すJSONキーファイルを読みに行く。
+`docker-compose.yml`の`hono`サービスで
+
+```yaml
+environment:
+  - GOOGLE_APPLICATION_CREDENTIALS=/usr/src/app/secrets/service-account.json
+```
+
+と設定済み。`./hono:/usr/src/app`を丸ごとbind mountしているので、
+**ホスト側の`hono/secrets/service-account.json`にサービスアカウントの
+JSONキーを置くだけ**でコンテナ内から読める(`hono/secrets/`は`.gitkeep`を
+除いてgitignore済み)。
+
+#### サービスアカウントの準備手順
+
+1. GCPコンソールでサービスアカウントを作成し、[Speech-to-Text用の
+   predefined role](https://docs.cloud.google.com/iam/docs/roles-permissions/speech)
+   のうち`roles/speech.client`(呼び出し専用の最小権限ロール)を付与する。
+   `roles/speech.admin`・`roles/speech.editor`は管理系操作も含むため不要。
+2. そのサービスアカウントのJSONキーを発行し、`hono/secrets/service-account.json`
+   として配置する(このファイル自体はコミットしない)。
+
+#### 動作確認(キー未配置の状態)
+
+キーを配置する前に、意図通りエラーになることを確認済み:
+
+```bash
+$ curl -s -i http://localhost:8787/token
+HTTP/1.1 500 Internal Server Error
+{"error":"failed to issue access token"}
+```
+
+```bash
+$ docker compose logs hono --no-log-prefix --tail 5
+Error: Unable to read the credential file specified by the GOOGLE_APPLICATION_CREDENTIALS
+environment variable: The file at /usr/src/app/secrets/service-account.json does not
+exist, or it is not a file. ENOENT: no such file or directory, ...
+```
+
+キー配置後に`access_token`が返ってくることの確認は、実際のサービスアカウントを
+用意してから行う(未検証)。
+
 ### 未解決事項(今後の実装で詰める)
 
 - iOSアプリ側はアクセストークンの有効期限管理・失効時の再取得ロジックを
   自前で持つ必要がある(フルプロキシ方式なら不要だった責務)。
-- `hono/`サーバーのエンドポイント形状(REST/GETかPOSTか、レスポンス形式)は
-  未定義。実装時に決める。
+- 実際にサービスアカウントのJSONキーを配置した状態での`/token`の動作確認は
+  まだ行っていない(キー未発行のため)。
