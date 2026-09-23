@@ -15,11 +15,15 @@ struct RecordView: View {
   @State private var volumeInDB: Float = -.infinity
   @State private var volumeContinuation: AsyncStream<Float>.Continuation?
   @State private var volumeTask: Task<Void, Never>?
+  @State private var transcript = ""
+  @State private var audioFinish: (() -> Void)?
+  @State private var transcriptTask: Task<Void, Never>?
 
   var body: some View {
     VStack(spacing: 20) {
       Text(isRecording ? "録音中" : "停止中")
       Text(volumeText)
+      Text(transcript.isEmpty ? "認識結果: -" : "認識結果: \(transcript)")
       Button(isRecording ? "録音を停止" : "録音を開始") {
         if isRecording {
           recorder.stop()
@@ -28,6 +32,10 @@ struct RecordView: View {
           volumeContinuation = nil
           volumeTask?.cancel()
           volumeTask = nil
+          audioFinish?()
+          audioFinish = nil
+          transcriptTask?.cancel()
+          transcriptTask = nil
         } else {
           Task {
             do {
@@ -38,8 +46,30 @@ struct RecordView: View {
                   volumeInDB = volume
                 }
               }
+
+              let speechStream = testSpeechStream()
+              audioFinish = speechStream.finish
+              transcript = ""
+              transcriptTask = Task {
+                do {
+                  for try await result in speechStream.result {
+                    transcript = result
+                  }
+                } catch {
+                  print("StreamingRecognize error: \(error)")
+                }
+              }
+
+              var converter: PCMFormatConverter?
               try await recorder.start { buffer in
                 continuation.yield(AudioLevel.dBFS(of: buffer))
+
+                if converter == nil {
+                  converter = PCMFormatConverter(inputFormat: buffer.format)
+                }
+                if let data = converter?.convert(buffer) {
+                  speechStream.send(data)
+                }
               }
               isRecording = true
             } catch {
