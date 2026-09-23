@@ -9,8 +9,8 @@ iOSアプリからGoogle Cloud Speech-to-Text (STT) のgRPC streaming APIを利�
 [docs/adr/](docs/adr/) のADRを参照):
 
 1. 簡単なgRPCサーバーを立てる(`grpc/`) — 完了。[docs/adr/20260920.md](docs/adr/20260920.md)
-2. iOS Swift側でgRPC Clientの実装を確立する(`iOS/`) — 未着手
-3. (1)(2)の土台をGoogle STT gRPCに適用する — 未着手
+2. iOS Swift側でgRPC Clientの実装を確立する(`iOS/`) — 完了
+3. (1)(2)の土台をGoogle STT gRPCに適用する — 計画中。[docs/adr/20260923.md](docs/adr/20260923.md)
 
 ## ディレクトリ構成
 
