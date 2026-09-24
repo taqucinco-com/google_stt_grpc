@@ -12,7 +12,7 @@ import Foundation
 /// LINEAR16(16bit signed PCM, 16kHz, mono)のAVAudioPCMBufferに変換するだけの
 /// 責務を持つ。バイト列(Data)化は行わない(PCMBufferSerializerNodeの責務)ので、
 /// 録音のgRPC送信以外の用途(ファイル書き込み等)にも転用しやすい。
-final class PCMFormatConverterNode: AudioPipelineNode {
+nonisolated final class PCMFormatConverterNode: AudioPipelineNode {
   private let converter: AVAudioConverter
   let outputFormat: AVAudioFormat
   var onOutput: ((AVAudioPCMBuffer) -> Void)?

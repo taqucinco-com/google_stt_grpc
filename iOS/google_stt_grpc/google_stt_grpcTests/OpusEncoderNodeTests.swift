@@ -10,7 +10,7 @@ import Testing
 @testable import google_stt_grpc
 
 struct OpusEncoderNodeTests {
-  private let sampleRate = 48000.0
+  private let sampleRate = 16000.0
   private let frameDurationMs = 20.0
 
   @Test func encodesExactFrameIntoNonEmptyOpusPacket() throws {
@@ -20,7 +20,7 @@ struct OpusEncoderNodeTests {
     var emitted: [AVAudioCompressedBuffer] = []
     node.onOutput = { emitted.append($0) }
 
-    let frameLength = AVAudioFrameCount(sampleRate * frameDurationMs / 1000)  // 960
+    let frameLength = AVAudioFrameCount(sampleRate * frameDurationMs / 1000)  // 320
     let input = SineWaveFixture.makeBuffer(
       format: format, frameLength: frameLength, startSampleIndex: 0, frequency: 440, sampleRate: sampleRate
     )

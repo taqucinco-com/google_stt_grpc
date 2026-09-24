@@ -11,7 +11,7 @@ import AVFAudio
 /// AVAudioPCMBufferに整形してpushするだけの責務を持つ。入力側のバッファ境界
 /// (CoreAudioが実際に渡すフレーム数は保証されない)と、出力側が要求する固定
 /// フレーム長を分離するためのノード。サンプル型(Int16/Float32)には依存しない。
-final class PCMFrameBufferNode: AudioPipelineNode {
+nonisolated final class PCMFrameBufferNode: AudioPipelineNode {
   var onOutput: ((AVAudioPCMBuffer) -> Void)?
   private let format: AVAudioFormat
   private let frameCount: AVAudioFrameCount

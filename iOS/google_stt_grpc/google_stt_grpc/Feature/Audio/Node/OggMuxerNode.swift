@@ -14,20 +14,22 @@ import Foundation
 /// ストリーム・1パケット1ページのみをサポートする(Opusパケットは常に1275バイト
 /// 以下なので複数セグメントにまたがることはない)。EOSフラグの付与は行わない
 /// (ストリーミング用途では必須ではないため)。
-final class OggMuxerNode: AudioPipelineNode {
+nonisolated final class OggMuxerNode: AudioPipelineNode {
   var onOutput: ((Data) -> Void)?
 
   private let serialNumber: UInt32
   private var pageSequenceNumber: UInt32 = 0
   private var granulePosition: Int64 = 0
+  private let sampleRate: Double
   private let samplesPerPacket: Int64
   private var didWriteHeaderPages = false
 
   /// - Parameters:
   ///   - sampleRate: Opusのサンプルレート(Hz)。OpusEncoderNodeと一致させる。
   ///   - frameDurationMs: 1フレームの長さ(ms)。OpusEncoderNodeと一致させる。
-  init(sampleRate: Double = 48000, frameDurationMs: Double = 20) {
+  init(sampleRate: Double = 16000, frameDurationMs: Double = 20) {
     serialNumber = UInt32.random(in: UInt32.min...UInt32.max)
+    self.sampleRate = sampleRate
     samplesPerPacket = Int64(sampleRate * frameDurationMs / 1000)
   }
 
@@ -55,7 +57,7 @@ final class OggMuxerNode: AudioPipelineNode {
     data.append(1)                          // version
     data.append(1)                          // channel count (mono)
     data.appendLittleEndian(UInt16(0))       // pre-skip
-    data.appendLittleEndian(UInt32(48000))   // input sample rate(情報用、デコードには使われない)
+    data.appendLittleEndian(UInt32(sampleRate))  // input sample rate(情報用、デコードには使われない)
     data.appendLittleEndian(Int16(0))        // output gain
     data.append(0)                          // channel mapping family(0 = mono/stereo)
     return data
@@ -124,7 +126,7 @@ final class OggMuxerNode: AudioPipelineNode {
 }
 
 extension Data {
-  fileprivate mutating func appendLittleEndian<T: FixedWidthInteger>(_ value: T) {
+  fileprivate nonisolated mutating func appendLittleEndian<T: FixedWidthInteger>(_ value: T) {
     var le = value.littleEndian
     Swift.withUnsafeBytes(of: &le) { append(contentsOf: $0) }
   }

@@ -63,7 +63,6 @@ struct RecordView: View {
               // PCMFrameBufferNode → OpusEncoderNode → oggMuxer を組み立てる
               // 先頭ノードさえ保持すればチェーン全体が生存し続ける。
               var frameBuffer: PCMFrameBufferNode?
-              var encoder: OpusEncoderNode?
               let oggMuxer = OggMuxerNode()
 
               func setupPipeline(format: AVAudioFormat) {
@@ -72,7 +71,6 @@ struct RecordView: View {
                 newFrameBuffer.connect(to: newEncoder)
                 newEncoder.connect(to: oggMuxer)
                 frameBuffer = newFrameBuffer
-                encoder = newEncoder
                 oggMuxer.onOutput = { data in speechStream.send(data) }
               }
 
