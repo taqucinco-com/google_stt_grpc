@@ -316,9 +316,9 @@ message RecognitionConfig {
 ```protobuf
 enum AudioEncoding {
   ENCODING_UNSPECIFIED = 0;
-  LINEAR16 = 1;   // 非圧縮16bit signed PCM。現在このプロジェクトで使用中
+  LINEAR16 = 1;   // 非圧縮16bit signed PCM
   FLAC = 2;
-  OGG_OPUS = 6;   // 8000/12000/16000/24000/48000Hz対応。未対応
+  OGG_OPUS = 6;   // 8000/12000/16000/24000/48000Hz対応。現在このプロジェクトで使用中(16000Hz)
   WEBM_OPUS = 9;
   ...
 }
@@ -435,13 +435,30 @@ package名・service名・method名・フィールド番号は本家と完全に
 
 ### 音声処理パイプライン
 
-`RecordView`が「録音を開始」タップで以下を行う。
+`RecordView`が「録音を開始」タップで、[Feature/Audio/Node/](iOS/google_stt_grpc/google_stt_grpc/Feature/Audio/Node/)配下の
+ノードを接続して以下の処理を行う。各ノードは
+[AudioPipelineNode](iOS/google_stt_grpc/google_stt_grpc/Feature/Audio/AudioPipelineNode.swift)
+という共通の契約(`process(_:)`で入力を受け取り`onOutput`で次段へpushする、
+AudioUnitのnode接続を参考にした設計)に準拠している。
 
-1. [AudioRecorder](iOS/google_stt_grpc/google_stt_grpc/Feature/Audio/AudioRecorder.swift)が
-   `AVAudioEngine`でマイク入力をバッファリング
-2. [PCMFormatConverter](iOS/google_stt_grpc/google_stt_grpc/Feature/Audio/PCMFormatConverter.swift)が
-   `AVAudioConverter`でLINEAR16(16bit signed PCM, 16kHz, mono)に変換
-3. `SpeechStreamClient`が変換済みデータをGoogle STTへストリーミング送信し、
-   文字起こし結果を画面上の「認識結果」に表示
+```
+AudioRecorder(AVAudioEngineでマイク入力をバッファリング)
+  → PCMFrameBufferNode  (Opusのフレーム長(20ms)ぴったりに整形)
+  → OpusEncoderNode       (AVAudioConverter + kAudioFormatOpus。生のOpusパケットへエンコード)
+  → OggMuxerNode          (Ogg Opusコンテナへ梱包)
+  → SpeechStreamClientでGoogle STTへ送信、文字起こし結果を「認識結果」に表示
+```
 
-現状はLINEAR16(非圧縮)のみに対応。OPUS等codecには未対応。
+- サンプルレートは16kHz(WB)。Opusは8000/12000/16000/24000/48000Hzのいずれか
+  固定で、音声用途には16kHzで十分なため
+- `AudioPipelineNode`に準拠するノードはすべて`nonisolated`。CoreAudioの
+  リアルタイムオーディオスレッドから同期的に呼ばれるため、
+  MainActor(このプロジェクトのデフォルトisolation)にはしていない
+- [PCMFormatConverterNode](iOS/google_stt_grpc/google_stt_grpc/Feature/Audio/Node/PCMFormatConverterNode.swift)・
+  [PCMBufferSerializerNode](iOS/google_stt_grpc/google_stt_grpc/Feature/Audio/Node/PCMBufferSerializerNode.swift)は
+  LINEAR16(非圧縮)時代に使っていたノードで、現在のOpusパイプラインには
+  接続されていないが、コードとしては残っている
+
+現状はOpusの1フレーム=1パケット=1 Oggページという最もシンプルな構成。
+オーバーヘッド削減の方針は[docs/adr/20260924.md](docs/adr/20260924.md)を参照
+(未実装)。

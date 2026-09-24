@@ -9,7 +9,7 @@ import AVFAudio
 import Foundation
 
 /// AVAudioPCMBuffer(Int16, interleaved)をDataへ変換するだけの責務を持つ。
-final class PCMBufferSerializerNode: AudioPipelineNode {
+nonisolated final class PCMBufferSerializerNode: AudioPipelineNode {
   var onOutput: ((Data) -> Void)?
 
   func process(_ input: AVAudioPCMBuffer) {

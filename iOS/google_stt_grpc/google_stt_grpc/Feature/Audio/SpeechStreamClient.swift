@@ -55,7 +55,7 @@ func testSpeechStream(languageCode: String = "ja-JP") -> (send: (Data) -> Void, 
             $0.streamingConfig = .with {
               $0.config = .with {
                 $0.encoding = .oggOpus
-                $0.sampleRateHertz = 48000
+                $0.sampleRateHertz = 16000
                 $0.languageCode = languageCode
               }
               $0.interimResults = true

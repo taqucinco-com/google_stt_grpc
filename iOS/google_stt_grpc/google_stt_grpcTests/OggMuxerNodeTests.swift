@@ -10,7 +10,7 @@ import Testing
 @testable import google_stt_grpc
 
 struct OggMuxerNodeTests {
-  private let sampleRate = 48000.0
+  private let sampleRate = 16000.0
   private let frameDurationMs = 20.0
 
   @Test func muxesRealOpusPacketsFromSineWaveIntoWellFormedOggPages() throws {
@@ -59,9 +59,10 @@ struct OggMuxerNodeTests {
       #expect(pageSeq == UInt32(index))
     }
 
-    // granule position(offset 6-13)が音声ページごとに960ずつ増えていくこと
+    // granule position(offset 6-13)が音声ページごとに320(16kHzで20ms分)ずつ
+    // 増えていくこと
     let granulePositions = pages[2...].map { readInt64LE($0, offset: 6) }
-    #expect(granulePositions == [960, 1920, 2880])
+    #expect(granulePositions == [320, 640, 960])
 
     // 全ページのCRC(offset 22-25)が自己整合していることを確認する
     // (production側のCRC実装はprivateなので、検証用に同一のアルゴリズムをここで独立に実装する)。
